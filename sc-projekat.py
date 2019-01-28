@@ -26,7 +26,7 @@ plt.show()
 
 def custom_rgb2gray(frame_rgb):  # custom funkcija za prebaivanje u gray, jer se inace gubi plava linija
     frame_gray = np.ndarray((frame_rgb.shape[0], frame_rgb.shape[1]))
-    frame_gray = 0.2*frame_rgb[:, :, 1] + 0.07*frame_rgb[:, :, 2]
+    frame_gray = 0.1*frame_rgb[:, :, 1] + 0.1*frame_rgb[:, :, 2]
     frame_gray = frame_gray.astype('uint8')
     return frame_gray
 
