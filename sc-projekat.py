@@ -1,3 +1,4 @@
+from __future__ import print_function
 import os
 
 import inline as inline
@@ -5,11 +6,22 @@ import matplotlib
 import numpy
 import numpy as np
 import cv2
-from sklearn.svm import SVC
-from sklearn.metrics import accuracy_score
-from sklearn.model_selection import train_test_split
-from sklearn.neighbors import KNeighborsClassifier
+import collections
+
+from keras.models import Sequential
+from keras.layers.core import Dense, Activation
+from keras.optimizers import SGD
+
 import matplotlib.pyplot as plt
+
+
+def display_image(image, color=False):
+    if color:
+        plt.imshow(image)
+        plt.show()
+    else:
+        plt.imshow(image, 'gray')
+        plt.show()
 
 
 def custom_rgb2gray(frame_rgb):  # custom funkcija za prebaivanje u gray, jer se inace gubi plava linija
@@ -17,6 +29,28 @@ def custom_rgb2gray(frame_rgb):  # custom funkcija za prebaivanje u gray, jer se
     frame_gray = 0.1*frame_rgb[:, :, 1] + 0.1*frame_rgb[:, :, 2]
     frame_gray = frame_gray.astype('uint8')
     return frame_gray
+
+
+def convert_bgr2rgb(image):
+    return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+
+def convert_rgb2gray(image):
+    return cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+
+
+def adaptive_threshold(image):
+    return cv2.adaptiveThreshold(image, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 17, 11)
+
+
+def extract_number_contours(contours):
+    contours_numbers = []
+    for c in contours:
+        center, size, angle = cv2.minAreaRect(c)
+        width, height = size
+        if 17 < width < 70 and 17 < height < 70:
+            contours_numbers.append(c)
+    return contours_numbers
 
 
 frame_number = 0
@@ -27,31 +61,23 @@ cap.set(1, frame_number)
 fps = cap.get(cv2.CAP_PROP_FPS)
 print("frames per second: %.2f" % fps)
 
+
 ret_val, frame = cap.read()
-frame_orig = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-plt.imshow(frame_orig )
-plt.show()
+frame_orig = convert_bgr2rgb(frame)
+display_image(frame_orig, True)
 
-frame_orig_gray = cv2.cvtColor(frame_orig, cv2.COLOR_RGB2GRAY)
-plt.imshow(frame_orig_gray, 'gray')
-plt.show()
+frame_orig_gray = convert_rgb2gray(frame_orig)
+display_image(frame_orig_gray, False)
 
-frame_orig_bin = cv2.adaptiveThreshold(frame_orig_gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 17, 11)
-plt.imshow(frame_orig_bin, 'gray')
-plt.show()
+frame_orig_bin = adaptive_threshold(frame_orig_gray)
+display_image(frame_orig_bin, False)
 
-frame, contours, hierarchy = cv2.findContours(frame_orig_bin, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+frame, ctr, hierarchy = cv2.findContours(frame_orig_bin, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 
-contours_numbers = []
-for c in contours:
-    center, size, angle = cv2.minAreaRect(c)
-    width, height = size
-    if 17 < width < 70 and 17 < height < 70:
-        contours_numbers.append(c)
+numbers_only = extract_number_contours(ctr)
 
 frame = frame_orig.copy()
-cv2.drawContours(frame, contours_numbers, -1, (255, 0, 0), 2)
-plt.imshow(frame)
-plt.show()
+cv2.drawContours(frame, numbers_only, -1, (255, 0, 0), 2)
+display_image(frame, True)
 
 cap.release()
