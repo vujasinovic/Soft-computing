@@ -74,7 +74,7 @@ def select_roi(image_orig, image_bin):
     for contour in contours:
         x, y, w, h = cv2.boundingRect(contour)  # koordinate i velicina granicnog pravougaonika
         area = cv2.contourArea(contour)
-        if area > 100 and h < 100 and h > 15 and w > 20:
+        if h > 10 and area > 20 and area < 700:
             region = image_bin[y:y + h + 1, x:x + w + 1]
             regions_array.append([resize_region(region), (x, y, w, h)])
             cv2.rectangle(image_orig, (x, y), (x + w, y + h), (255, 0, 0), 2)
@@ -111,7 +111,7 @@ def convert_output(alphabet):
 
 
 frame_number = 0
-cap = cv2.VideoCapture("data/video-2.avi")
+cap = cv2.VideoCapture("data/video-1.avi")
 while cap.isOpened():
     ret_val, frame = cap.read()
     frame_orig = convert_bgr2rgb(frame)
@@ -121,18 +121,11 @@ while cap.isOpened():
     # display_image(frame_orig_gray, False)
     edges = cv2.Canny(frame_orig_gray, 50, 100, apertureSize=3)
 
-    lines = cv2.HoughLines(edges, 1, np.pi/180, 200)
-    for rho, theta in lines[0]:
-        a = np.cos(theta)
-        b = np.sin(theta)
-        x0 = a*rho
-        y0 = b*rho
-        x1 = int(x0 + 1000*(-b))
-        y1 = int(y0 + 1000*a)
-        x2 = int(x0 - 1000*(-b))
-        y2 = int(y0 - 1000*a)
-
-        cv2.line(frame_orig, (x1, y1), (x2, y2), (0, 0, 255), 2)
+    minLineLength = 100
+    maxLineGap = 10
+    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, 100, minLineLength, maxLineGap)
+    for x1, y1, x2, y2 in lines[0]:
+        cv2.line(frame_orig, (x1, y1), (x2, y2), (255, 255, 0), 2)
 
     frame_orig_bin = adaptive_threshold(frame_orig_gray)
     frame_orig_bin = erode(frame_orig_bin)
