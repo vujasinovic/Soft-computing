@@ -4,45 +4,14 @@ import cv2
 import matplotlib as plt
 import matplotlib.pyplot as plt
 import numpy as np
+import vectors as vct
 import tensorflow as tf
 from keras.layers import Conv2D, Dropout, Flatten, MaxPooling2D
 from keras.layers.core import Dense
 from keras.models import Sequential
+from keras.models import load_model
 
-import train
-
-
-def cnn():
-    (x_train, y_train), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
-    # Reshaping the array to 4-dims so that it can work with the Keras API
-    x_train = x_train.reshape(x_train.shape[0], 28, 28, 1)
-    x_test = x_test.reshape(x_test.shape[0], 28, 28, 1)
-    input_shape = (28, 28, 1)
-    # Making sure that the values are float so that we can get decimal points after division
-    x_train = x_train.astype('float32')
-    x_test = x_test.astype('float32')
-    # Normalizing the RGB codes by dividing it to the max RGB value.
-    x_train /= 255
-    x_test /= 255
-    print('x_train shape:', x_train.shape)
-    print('Number of images in x_train', x_train.shape[0])
-    print('Number of images in x_test', x_test.shape[0])
-
-    # Creating a Sequential Model and adding the layers
-    model = Sequential()
-    model.add(Conv2D(28, kernel_size=(3, 3), input_shape=input_shape))
-    model.add(MaxPooling2D(pool_size=(2, 2)))
-    model.add(Flatten())  # Flattening the 2D arrays for fully connected layers
-    model.add(Dense(128, activation=tf.nn.relu))
-    model.add(Dropout(0.2))
-    model.add(Dense(10, activation=tf.nn.softmax))
-
-    model.compile(optimizer='adam',
-                  loss='sparse_categorical_crossentropy',
-                  metrics=['accuracy'])
-    # model.fit(x=x_train, y=y_train, epochs=10)
-    # model.evaluate(x_test, y_test)
-    return model
+model = load_model('model.h5')
 
 def display_image(image, color=False):
     if color:
@@ -53,33 +22,9 @@ def display_image(image, color=False):
         plt.show()
 
 
-def erode(image):
-    kernel = np.ones((3, 3))
-    return cv2.erode(image, kernel, iterations=1)
-
-
 def dilate(image):
     kernel = np.ones((2, 2))
     return cv2.dilate(image, kernel, iterations=1)
-
-
-def custom_rgb2gray(frame_rgb):  # custom funkcija za prebaivanje u gray, jer se inace gubi plava linija
-    frame_gray = np.ndarray((frame_rgb.shape[0], frame_rgb.shape[1]))
-    frame_gray = 0.1 * frame_rgb[:, :, 1] + 0.1 * frame_rgb[:, :, 2]
-    frame_gray = frame_gray.astype('uint8')
-    return frame_gray
-
-
-def convert_bgr2rgb(image):
-    return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
-
-def convert_rgb2gray(image):
-    return cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-
-
-def adaptive_threshold(image):
-    return cv2.adaptiveThreshold(image, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 17, 11)
 
 
 def extract_number_contours(contours):
@@ -94,7 +39,6 @@ def extract_number_contours(contours):
 
 def resize_region(region):
     return cv2.resize(region, (28, 28), interpolation=cv2.INTER_NEAREST)
-
 
 
 def scale_to_range(image):
@@ -169,29 +113,118 @@ def find_blue_line_coords(img):
     return coords
 
 
+def setup_vectors():
+    global green_line_start
+    global green_line_end
+    global green_line_vector
+    global green_line_length
+    global green_line_unit_vector
+
+    global blue_line_start
+    global blue_line_end
+    global blue_line_vector
+    global blue_line_length
+    global blue_line_unit_vector
+    green_line_start = (green_x1, green_y1, 0)
+    green_line_end = (green_x2, green_y2, 0)
+    green_line_vector = vct.vector(green_line_start, green_line_end)
+    green_line_length = vct.length(green_line_vector)
+    if green_line_length != 0.0:
+        green_line_unit_vector = vct.unit(green_line_vector)
+
+    blue_line_start = (blue_x1, blue_y1, 0)
+    blue_line_end = (blue_x2, blue_y2, 0)
+    blue_line_vector = vct.vector(blue_line_start, blue_line_end)
+    blue_line_length = vct.length(blue_line_vector)
+    if blue_line_length != 0.0:
+        blue_line_unit_vector = vct.unit(blue_line_vector)
+
+
 def select_roi(image_orig, image_bin):
-    # cv2.imshow('dbg', image_bin)
-    img, contours, hierarchy = cv2.findContours(image_bin.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    global suma
+
+    img, contours, hierarchy = cv2.findContours(image_bin.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
     sorted_regions = []
     regions_array = []
+
     i = 0
     for contour in contours:
         x, y, w, h = cv2.boundingRect(contour)  # koordinate i velicina granicnog pravougaonika
         area = cv2.contourArea(contour)
+        if area > 10 and area < 230 and (w > 15 or h > 15):
+            if green_line_length != 0 and blue_line_length != 0:
+                dist_green, nearest = vct.pnt2line((x+w, y+h, 0), (green_x1, green_y1, 0), (green_x2, green_y2, 0))
+                dist_blue, nearest = vct.pnt2line((x, y, 0), (blue_x1, blue_y1, 0), (blue_x2, blue_y2, 0))
+
+                region = image_bin[y:y + h + 1, x:x + w + 1]
+                number = predict_number(region)
+                # display_image(region, True)
+                if number not in passed_green_array and dist_green < 0.5:
+                    passed_green_array.append(number)
+                    suma = suma - number;
+                    print('PASSED GREEN:', number)
+                    print('SUMA: ', suma)
+
+                if number not in passed_blue_array and dist_blue < 0.5:
+                    passed_blue_array.append(number)
+                    suma = suma + number
+                    print('PASSED BLUE:', number)
+                    print('SUMA: ', suma)
+                else:
+                    continue
+                # if dist_green < 5:
+                #     if number not in passed_green_array:
+                #         passed_green_array.append(number)
+                #         suma = suma - number
+                #         print('PASSED GREEN:', number)
+                #         print('SUMA: ', suma)
+                #     elif number in passed_green_array:
+                #         continue
+                # elif number in passed_green_array:
+                #     passed_green_array.remove(number)
+                # if dist_blue < 5:
+                #     if number not in passed_blue_array:
+                #         passed_blue_array.append(number)
+                #         suma = suma + number
+                #         print('PASSED BLUE:', number)
+                #         print('SUMA: ', suma)
+                #     elif number in passed_blue_array:
+                #         continue
+                # elif number in passed_blue_array:
+                #     passed_blue_array.remove(number)
+
+        area = cv2.contourArea(contour)
         if area > 10 and area < 230 and (w > 14 or h > 14):
             # print(w, h)
             region = image_bin[y:y + h + 1, x:x + w + 1]
-            regions_array.append([region, (x, y, w, h)])
+            regions_array.append([resize_region(region), (x, y, w, h)])
             cv2.rectangle(image_orig, (x, y), (x + w, y + h), (255, 0, 0), 2)
     regions_array = sorted(regions_array, key=lambda item: item[1][0])
     sorted_regions = [region[0] for region in regions_array]
-
     return image_orig, sorted_regions
+
+
+def predict_number(region):
+    black_image = np.ones([28, 28], dtype=np.uint8) * 0
+    if region.shape[0] < 25 and region.shape[1] < 25:
+        black_image[3:3 + region.shape[0], 3:3 + region.shape[1]] = region
+        # display_image(black_image, True)
+        result = model.predict(black_image.reshape(1, 28, 28, 1))
+        # print(result.argmax())
+        return result.argmax()
+    elif region.shape[0] > 28 or region.shape[1] > 28:
+        return 0
+    else:
+        black_image[0:0 + region.shape[0], 0:0 + region.shape[1]] = region
+        # display_image(black_image, True)
+        result = model.predict(black_image.reshape(1, 28, 28, 1))
+        # print(result.argmax())
+        return result.argmax()
 
 
 def predict_numbers():
     numbers = []
-    frame_rec, regions = select_roi(frame_original.copy(), frame_orig_bin)
+    frame_rec, regions = select_roi(frame.copy(), frame_orig_bin)
     for region in regions:
         # black_image = cv2.imread('data/black_image.jpg')
         black_image = np.ones([28, 28], dtype=np.uint8) * 0
@@ -210,12 +243,45 @@ def predict_numbers():
 
         # print(result)
 
-    print(len(numbers))
+    # print(numbers)
     return frame_rec
 
 
+def find_line_coords(blue_line_c):
+    global blue_x1
+    global blue_x2
+    global blue_y1
+    global blue_y2
+
+    global green_x1
+    global green_x2
+    global green_y1
+    global green_y2
+
+    blue_x1 = min([bc[0] for bc in blue_line_c])
+    blue_y1 = max([bc[1] for bc in blue_line_c])
+    blue_x2 = max([bc[2] for bc in blue_line_c])
+    blue_y2 = min([bc[3] for bc in blue_line_c])
+
+    green_x1 = min([gc[0] for gc in green_line_c])
+    green_y1 = max([gc[1] for gc in green_line_c])
+    green_x2 = max([gc[2] for gc in green_line_c])
+    green_y2 = min([gc[3] for gc in green_line_c])
+
+    print('b min x1: ', blue_x1)
+    print('b max y1: ', blue_y1)
+    print('b max x2: ', blue_x2)
+    print('b min y2: ', blue_y2)
+
+    print('g min x1: ', green_x1)
+    print('g max y1: ', green_y1)
+    print('g max x2: ', green_x2)
+    print('g min y2: ', green_y2)
+
+
+suma = 0
 frame_number = 0
-cap = cv2.VideoCapture("data/video-2.avi")
+cap = cv2.VideoCapture("data/video-0.avi")
 flag = False
 blue_line_c = []
 green_line_c = []
@@ -227,10 +293,26 @@ green_x1 = 0
 green_x2 = 0
 green_y1 = 0
 green_y2 = 0
-model = cnn()
+green_line_start = 0
+green_line_end = 0
+green_line_vector = 0
+green_line_length = 0
+green_line_unit_vector = 0
+
+blue_line_start = 0
+blue_line_end = 0
+blue_line_vector = 0
+blue_line_length = 0
+blue_line_unit_vector = 0
+
+passed_green_array = []
+passed_blue_array = []
 while cap.isOpened():
-    cv2.waitKey(0)
     frame_number = frame_number + 1
+    if frame_number % 10 == 0:
+        passed_green_array = []
+        passed_blue_array = []
+
     ret_val, frame = cap.read()
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -252,33 +334,14 @@ while cap.isOpened():
         green_line_c.append(green_line_coords)
 
     if frame_number == 10:
-        blue_x1 = min([bc[0] for bc in blue_line_c])
-        blue_y1 = max([bc[1] for bc in blue_line_c])
-        blue_x2 = max([bc[2] for bc in blue_line_c])
-        blue_y2 = min([bc[3] for bc in blue_line_c])
-
-        green_x1 = min([gc[0] for gc in green_line_c])
-        green_y1 = max([gc[1] for gc in green_line_c])
-        green_x2 = max([gc[2] for gc in green_line_c])
-        green_y2 = min([gc[3] for gc in green_line_c])
-
-        print('b min x1: ', blue_x1)
-        print('b max y1: ', blue_y1)
-        print('b max x2: ', blue_x2)
-        print('b min y1: ', blue_y2)
-
-        print('g min x1: ', green_x1)
-        print('g max y1: ', green_y1)
-        print('g max x2: ', green_x2)
-        print('g min y1: ', green_y2)
+        find_line_coords(blue_line_c)
+        setup_vectors()
         # cv2.imshow('res_blue', result_blue)
         # cv2.imshow('res_green', result_green)
 
-    ########################DRAW LINES##########################################
-    cv2.line(frame, (green_x1, green_y1), (green_x2, green_y2), (255, 0, 255), 2)
-    cv2.line(frame, (blue_x1, blue_y1), (blue_x2, blue_y2), (255, 0, 255), 2)
+    # cv2.line(frame, (green_x1, green_y1), (green_x2, green_y2), (255, 0, 255), 2)
+    # cv2.line(frame, (blue_x1, blue_y1), (blue_x2, blue_y2), (255, 0, 255), 2)
     # cv2.imshow('with lines', frame)
-    ############################################################################
     frame_original = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     # display_image(frame_orig, True)
 
@@ -286,13 +349,15 @@ while cap.isOpened():
     # cv2.imshow('gray', frame_original_gray)
     # display_image(frame_orig_gray, False)
 
-    # frame_orig_bin = erode(frame_orig_gray)
-    frame_orig_bin = dilate(frame_original_gray)
+    kernel = np.ones((2, 2))
+    frame_orig_bin = cv2.erode(frame_original_gray, np.ones((3, 3)), iterations=2)
+    frame_orig_bin = cv2.dilate(frame_original_gray, kernel, iterations=1)
     _, frame_orig_bin = cv2.threshold(frame_orig_bin, 127, 255, cv2.THRESH_BINARY)
     # display_image(frame_orig_bin, False)
     frame_rec = predict_numbers()
 
     cv2.imshow('frame', frame_rec)
+    # cv2.waitKey(2000)
     if cv2.waitKey(25) & 0xFF == ord('q'):
         break
 cap.release()

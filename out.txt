@@ -1,12 +1,12 @@
-RA X/2013 Marko Markovic
+RA 169/2015 Aleksandar Vujasinovic
 file	sum
-video-0.avi	0
-video-1.avi	0
-video-2.avi	0
-video-3.avi	0
-video-4.avi	0
-video-5.avi	0
-video-6.avi	0
-video-7.avi	0
-video-8.avi	0
-video-9.avi	0
+video-0.avi	-1
+video-1.avi	-6
+video-2.avi	19
+video-3.avi	8
+video-4.avi	26
+video-5.avi	-40
+video-6.avi	32
+video-7.avi	26
+video-8.avi	26
+video-9.avi	43
