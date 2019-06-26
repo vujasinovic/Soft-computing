@@ -4,14 +4,37 @@ import cv2
 import matplotlib as plt
 import matplotlib.pyplot as plt
 import numpy as np
-import vectors as vct
-import tensorflow as tf
-from keras.layers import Conv2D, Dropout, Flatten, MaxPooling2D
-from keras.layers.core import Dense
-from keras.models import Sequential
 from keras.models import load_model
 
+import vectors as vct
+
 model = load_model('model.h5')
+flag = False
+blue_line_c = []
+green_line_c = []
+blue_x1 = 0
+blue_y1 = 0
+blue_x2 = 0
+blue_y2 = 0
+green_x1 = 0
+green_x2 = 0
+green_y1 = 0
+green_y2 = 0
+green_line_start = 0
+green_line_end = 0
+green_line_vector = 0
+green_line_length = 0
+green_line_unit_vector = 0
+
+blue_line_start = 0
+blue_line_end = 0
+blue_line_vector = 0
+blue_line_length = 0
+blue_line_unit_vector = 0
+
+passed_green_array = []
+passed_blue_array = []
+
 
 def display_image(image, color=False):
     if color:
@@ -27,44 +50,8 @@ def dilate(image):
     return cv2.dilate(image, kernel, iterations=1)
 
 
-def extract_number_contours(contours):
-    contours_numbers = []
-    for c in contours:
-        center, size, angle = cv2.minAreaRect(c)
-        width, height = size
-        if 17 < width < 70 and 17 < height < 70:
-            contours_numbers.append(c)
-    return contours_numbers
-
-
 def resize_region(region):
     return cv2.resize(region, (28, 28), interpolation=cv2.INTER_NEAREST)
-
-
-def scale_to_range(image):
-    return image / 255
-
-
-def matrix_to_vector(image):
-    return image.flatten()
-
-
-def prepare_for_ann(regions):
-    ready_for_ann = []
-    for region in regions:
-        scale = scale_to_range(region)
-        ready_for_ann.append(matrix_to_vector(scale))
-
-    return ready_for_ann
-
-
-def convert_output(alphabet):
-    nn_outputs = []
-    for index in range(len(alphabet)):
-        output = np.zeros(len(alphabet))
-        output[index] = 1
-        nn_outputs.append(output)
-    return np.array(nn_outputs)
 
 
 def create_masks(hsv):
@@ -151,23 +138,28 @@ def select_roi(image_orig, image_bin):
     for contour in contours:
         x, y, w, h = cv2.boundingRect(contour)  # koordinate i velicina granicnog pravougaonika
         area = cv2.contourArea(contour)
-        if area > 10 and area < 230 and (w > 15 or h > 15):
+
+        if area > 50 and area < 1000: #(w > 25 or h > 15):
             if green_line_length != 0 and blue_line_length != 0:
-                dist_green, nearest = vct.pnt2line((x+w, y+h, 0), (green_x1, green_y1, 0), (green_x2, green_y2, 0))
-                dist_blue, nearest = vct.pnt2line((x, y, 0), (blue_x1, blue_y1, 0), (blue_x2, blue_y2, 0))
+                dist_green, nearest = vct.pnt2line((x + w, y + h, 0), (green_x1, green_y1, 0), (green_x2, green_y2, 0))
+                dist_blue, nearest = vct.pnt2line((x + w, y + h, 0), (blue_x1, blue_y1, 0), (blue_x2, blue_y2, 0))
 
                 region = image_bin[y:y + h + 1, x:x + w + 1]
-                number = predict_number(region)
+                number = predict_number(resize_region(region))
                 # display_image(region, True)
-                if number not in passed_green_array and dist_green < 0.5:
+                if number not in passed_green_array and dist_green < 0.6:
                     passed_green_array.append(number)
-                    suma = suma - number;
+                    suma = suma - number
+                    regions_array.append([resize_region(region), (x, y, w, h)])
+                    cv2.rectangle(image_orig, (x, y), (x + w, y + h), (0, 255, 0), 2)
                     print('PASSED GREEN:', number)
                     print('SUMA: ', suma)
 
                 if number not in passed_blue_array and dist_blue < 0.5:
                     passed_blue_array.append(number)
                     suma = suma + number
+                    regions_array.append([resize_region(region), (x, y, w, h)])
+                    cv2.rectangle(image_orig, (x, y), (x + w, y + h), (0, 0, 255), 2)
                     print('PASSED BLUE:', number)
                     print('SUMA: ', suma)
                 else:
@@ -192,13 +184,12 @@ def select_roi(image_orig, image_bin):
                 #         continue
                 # elif number in passed_blue_array:
                 #     passed_blue_array.remove(number)
-
-        area = cv2.contourArea(contour)
-        if area > 10 and area < 230 and (w > 14 or h > 14):
-            # print(w, h)
-            region = image_bin[y:y + h + 1, x:x + w + 1]
-            regions_array.append([resize_region(region), (x, y, w, h)])
-            cv2.rectangle(image_orig, (x, y), (x + w, y + h), (255, 0, 0), 2)
+        # area = cv2.contourArea(contour)
+        # if area > 10 and area < 230 and (w > 14 or h > 14):
+        #     # print(w, h)
+        #     region = image_bin[y:y + h + 1, x:x + w + 1]
+        #     regions_array.append([resize_region(region), (x, y, w, h)])
+        #     cv2.rectangle(image_orig, (x, y), (x + w, y + h), (255, 0, 0), 2)
     regions_array = sorted(regions_array, key=lambda item: item[1][0])
     sorted_regions = [region[0] for region in regions_array]
     return image_orig, sorted_regions
@@ -207,17 +198,19 @@ def select_roi(image_orig, image_bin):
 def predict_number(region):
     black_image = np.ones([28, 28], dtype=np.uint8) * 0
     if region.shape[0] < 25 and region.shape[1] < 25:
-        black_image[3:3 + region.shape[0], 3:3 + region.shape[1]] = region
+        # black_image[3:3 + region.shape[0], 3:3 + region.shape[1]] = region
         # display_image(black_image, True)
-        result = model.predict(black_image.reshape(1, 28, 28, 1))
+        result = model.predict(region.reshape(1, 28, 28, 1))
         # print(result.argmax())
         return result.argmax()
     elif region.shape[0] > 28 or region.shape[1] > 28:
+        print('Could not recognize.')
+        print(region.shape)
         return 0
     else:
-        black_image[0:0 + region.shape[0], 0:0 + region.shape[1]] = region
+        # black_image[0:0 + region.shape[0], 0:0 + region.shape[1]] = region
         # display_image(black_image, True)
-        result = model.predict(black_image.reshape(1, 28, 28, 1))
+        result = model.predict(region.reshape(1, 28, 28, 1))
         # print(result.argmax())
         return result.argmax()
 
@@ -281,32 +274,10 @@ def find_line_coords(blue_line_c):
 
 suma = 0
 frame_number = 0
-cap = cv2.VideoCapture("data/video-0.avi")
-flag = False
-blue_line_c = []
-green_line_c = []
-blue_x1 = 0
-blue_y1 = 0
-blue_x2 = 0
-blue_y2 = 0
-green_x1 = 0
-green_x2 = 0
-green_y1 = 0
-green_y2 = 0
-green_line_start = 0
-green_line_end = 0
-green_line_vector = 0
-green_line_length = 0
-green_line_unit_vector = 0
+cap = cv2.VideoCapture("data/video-9.avi")
 
-blue_line_start = 0
-blue_line_end = 0
-blue_line_vector = 0
-blue_line_length = 0
-blue_line_unit_vector = 0
 
-passed_green_array = []
-passed_blue_array = []
+
 while cap.isOpened():
     frame_number = frame_number + 1
     if frame_number % 10 == 0:
@@ -327,13 +298,13 @@ while cap.isOpened():
     green_line_rgb = cv2.cvtColor(result_green, cv2.COLOR_BGR2RGB)
     green_line_gray = cv2.cvtColor(green_line_rgb, cv2.COLOR_RGB2GRAY)
 
-    if frame_number < 10:
+    if frame_number < 19:
         green_line_coords = find_green_line_coords(result_green)
         blue_line_coords = find_blue_line_coords(result_blue)
         blue_line_c.append(blue_line_coords)
         green_line_c.append(green_line_coords)
 
-    if frame_number == 10:
+    if frame_number == 19:
         find_line_coords(blue_line_c)
         setup_vectors()
         # cv2.imshow('res_blue', result_blue)

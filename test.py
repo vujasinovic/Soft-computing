@@ -34,7 +34,7 @@ with open("out.txt") as file:
 diff = 0
 for index, res_col in enumerate(res):
     diff += abs(res_col - student_results[index])
-percentage = 100 - diff/sum(res)*100
+percentage = 100 - abs(diff/sum(res))*100
 
 print(student)
 print('Procenat tacnosti:\t'+str(percentage))
