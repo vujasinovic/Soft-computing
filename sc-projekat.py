@@ -8,6 +8,20 @@ from keras.models import load_model
 
 import vectors as vct
 
+#Materijali koristeni za izradu projekta:
+# FTN AI LAB:
+# https://github.com/ftn-ai-lab/sc-2018-e2/tree/master/v0-priprema
+# https://github.com/ftn-ai-lab/sc-2018-e2/tree/master/v1-uvod
+# https://github.com/ftn-ai-lab/sc-2018-e2/tree/master/v2-ocr
+# https://github.com/ftn-ai-lab/sc-2018-e2/tree/master/v3-hog
+#
+# Fundza (iskoristeno za izracunavanje distance izmedju tacke i linije):
+# http://www.fundza.com/vectors/point2line/index.html
+#
+# CNN:
+# https://machinelearningmastery.com/handwritten-digit-recognition-using-convolutional-neural-networks-python-keras/
+
+
 model = load_model('model.h5')
 flag = False
 blue_line_c = []
@@ -138,8 +152,10 @@ def select_roi(image_orig, image_bin):
     for contour in contours:
         x, y, w, h = cv2.boundingRect(contour)  # koordinate i velicina granicnog pravougaonika
         area = cv2.contourArea(contour)
+        # if w > 10 and h > 10 and w < 80 and w < 80:
+        #     cv2.rectangle(image_orig, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
-        if area > 50 and area < 1000: #(w > 25 or h > 15):
+        if area > 50 and area < 1000:
             if green_line_length != 0 and blue_line_length != 0:
                 dist_green, nearest = vct.pnt2line((x + w, y + h, 0), (green_x1, green_y1, 0), (green_x2, green_y2, 0))
                 dist_blue, nearest = vct.pnt2line((x + w, y + h, 0), (blue_x1, blue_y1, 0), (blue_x2, blue_y2, 0))
@@ -147,7 +163,7 @@ def select_roi(image_orig, image_bin):
                 region = image_bin[y:y + h + 1, x:x + w + 1]
                 number = predict_number(resize_region(region))
                 # display_image(region, True)
-                if number not in passed_green_array and dist_green < 0.6:
+                if number not in passed_green_array and dist_green < 0.9:
                     passed_green_array.append(number)
                     suma = suma - number
                     regions_array.append([resize_region(region), (x, y, w, h)])
@@ -155,7 +171,7 @@ def select_roi(image_orig, image_bin):
                     print('PASSED GREEN:', number)
                     print('SUMA: ', suma)
 
-                if number not in passed_blue_array and dist_blue < 0.5:
+                if number not in passed_blue_array and dist_blue < 0.7:
                     passed_blue_array.append(number)
                     suma = suma + number
                     regions_array.append([resize_region(region), (x, y, w, h)])
@@ -274,13 +290,12 @@ def find_line_coords(blue_line_c):
 
 suma = 0
 frame_number = 0
-cap = cv2.VideoCapture("data/video-9.avi")
-
+cap = cv2.VideoCapture("data/video-7.avi")
 
 
 while cap.isOpened():
     frame_number = frame_number + 1
-    if frame_number % 10 == 0:
+    if frame_number % 20 == 0:
         passed_green_array = []
         passed_blue_array = []
 
@@ -320,9 +335,9 @@ while cap.isOpened():
     # cv2.imshow('gray', frame_original_gray)
     # display_image(frame_orig_gray, False)
 
-    kernel = np.ones((2, 2))
-    frame_orig_bin = cv2.erode(frame_original_gray, np.ones((3, 3)), iterations=2)
-    frame_orig_bin = cv2.dilate(frame_original_gray, kernel, iterations=1)
+    kernel = np.ones((3, 3))
+    frame_orig_bin = cv2.erode(frame_original_gray, np.ones((2, 2)), iterations=1)
+    frame_orig_bin = cv2.dilate(frame_orig_bin, kernel, iterations=1)
     _, frame_orig_bin = cv2.threshold(frame_orig_bin, 127, 255, cv2.THRESH_BINARY)
     # display_image(frame_orig_bin, False)
     frame_rec = predict_numbers()
