@@ -1,3 +1,6 @@
+# Materijal preuzet sa:
+# http://www.fundza.com/vectors/point2line/index.html
+
 import math
 
 

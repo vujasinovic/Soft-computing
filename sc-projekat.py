@@ -20,6 +20,9 @@ import vectors as vct
 #
 # CNN:
 # https://machinelearningmastery.com/handwritten-digit-recognition-using-convolutional-neural-networks-python-keras/
+#
+# Detekcija linija (maske)
+# https://www.geeksforgeeks.org/detection-specific-colorblue-using-opencv-python/
 
 
 model = load_model('model.h5')
@@ -180,32 +183,7 @@ def select_roi(image_orig, image_bin):
                     print('SUMA: ', suma)
                 else:
                     continue
-                # if dist_green < 5:
-                #     if number not in passed_green_array:
-                #         passed_green_array.append(number)
-                #         suma = suma - number
-                #         print('PASSED GREEN:', number)
-                #         print('SUMA: ', suma)
-                #     elif number in passed_green_array:
-                #         continue
-                # elif number in passed_green_array:
-                #     passed_green_array.remove(number)
-                # if dist_blue < 5:
-                #     if number not in passed_blue_array:
-                #         passed_blue_array.append(number)
-                #         suma = suma + number
-                #         print('PASSED BLUE:', number)
-                #         print('SUMA: ', suma)
-                #     elif number in passed_blue_array:
-                #         continue
-                # elif number in passed_blue_array:
-                #     passed_blue_array.remove(number)
-        # area = cv2.contourArea(contour)
-        # if area > 10 and area < 230 and (w > 14 or h > 14):
-        #     # print(w, h)
-        #     region = image_bin[y:y + h + 1, x:x + w + 1]
-        #     regions_array.append([resize_region(region), (x, y, w, h)])
-        #     cv2.rectangle(image_orig, (x, y), (x + w, y + h), (255, 0, 0), 2)
+
     regions_array = sorted(regions_array, key=lambda item: item[1][0])
     sorted_regions = [region[0] for region in regions_array]
     return image_orig, sorted_regions
